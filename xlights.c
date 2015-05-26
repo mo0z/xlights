@@ -11,17 +11,18 @@
 #include "xlwin.h"
 
 int main(int argc, char *argv[]) {
-	int x11 = 0, ret = EXIT_FAILURE, wait = 3;
+	int x11 = 0, wait = 3;
 	struct xconn xc;
 	struct xlwin *w = NULL;
 	XWindowAttributes xwa;
 	XKeyboardState ks;
+	struct xlwin_state st;
 	while(argc > 1) {
 		if(strcmp(argv[argc - 1], "--x11") == 0) {
 			argc--;
 			x11 = 1;
-		} else if(strspn(argv[argc - 1], "0123456789") ==
-		  strlen(argv[argc - 1])) {
+		} else if(argv[argc - 1][strspn(argv[argc - 1], "0123456789")] ==
+		  '\0') {
 			argc--;
 			wait = strtol(argv[1], NULL, 10);
 		} else {
@@ -32,30 +33,23 @@ int main(int argc, char *argv[]) {
 	if(xconn_connect(&xc) < 0)
 		return EXIT_FAILURE;
 	if(x11 != 0) {
-		if(XGetWindowAttributes(xc.display, xc.root, &xwa) == 0) {
-			fprintf(stderr, "Error: XGetWindowAttributes\n");
-			goto error;
-		}
-		if(XGetKeyboardControl(xc.display, &ks) == 0) {
-			fprintf(stderr, "Error: XGetKeyboardControl\n");
-			goto error;
-		}
+		XGetWindowAttributes(xc.display, xc.root, &xwa);
+		XGetKeyboardControl(xc.display, &ks);
+		xconn_any_pressed(&xc, 3, st.pressed,
+		                  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock);
+		st.led_mask = ks.led_mask;
 		w = xlwin_new(&xc, &(struct rect){
 			xwa.width - 32 * 5, xwa.height - 48, 32 * 3, 32
-		}, ks.led_mask);
+		}, &st);
+		if(w == NULL)
+			return EXIT_FAILURE;
 	}
-	while(xconn_any_pressed(&xc, 3,
-	  XK_Caps_Lock, XK_Num_Lock, XK_Scroll_Lock) != 0)
+	while(xconn_any_pressed(&xc, 3, st.pressed,
+	  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock) != 0)
 		usleep(100000);
-	if(XGetKeyboardControl(xc.display, &ks) == 0) {
-		fprintf(stderr, "Error: XGetKeyboardControl\n");
-		goto error;
-	}
-	xlwin_draw(&xc, w, ks.led_mask);
+	XGetKeyboardControl(xc.display, &ks);
+	st.led_mask = ks.led_mask;
+	xlwin_draw(&xc, w, &st);
 	sleep(wait);
-error:
-	if(w != NULL)
-		xlwin_end(&xc, w);
-	xconn_close(&xc);
-	return ret;
+	return EXIT_SUCCESS;
 }
