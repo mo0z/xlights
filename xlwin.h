@@ -31,7 +31,7 @@ struct xlwin {
 	Colormap cm;
 	struct rect r;
 	Window win;
-	XColor c[2];
+	XColor c[3];
 	XFontStruct *f;
 	GC gc;
 };

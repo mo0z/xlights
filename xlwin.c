@@ -48,7 +48,6 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 	if(pressed != NULL)
 		memset(pressed, 0, ((num / BITS_IN_INT) +
 		       sizeof pressed * ((num % BITS_IN_INT) > 0)));
-	printf("pressed %d\n", *pressed);
 	for(i = 0; i < num; i++) {
 		kc = XKeysymToKeycode(xc->display, va_arg(ap, KeySym));
 		if((kr[kc / 8] & (1 << (kc % 8))) != 0) {
@@ -57,7 +56,6 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 			break;
 		}
 	}
-	printf("pressed after %d\n", *pressed);
 	va_end(ap);
 	return ret;
 }
@@ -77,8 +75,8 @@ static void xlwin_end(void *d) {
 		XDestroyWindow(x->display, x->w->win);
 	if((x->w->xlwin_init & XLWIN_C) != 0)
 		XFreeColors(x->display, x->w->cm, (unsigned long[]){
-			x->w->c[0].pixel, x->w->c[1].pixel
-		}, 2, 0);
+			x->w->c[0].pixel, x->w->c[1].pixel, x->w->c[2].pixel
+		}, 3, 0);
 	if((x->w->xlwin_init & XLWIN_F) != 0)
 		XFreeFont(x->display, x->w->f);
 	if((x->w->xlwin_init & XLWIN_GC) != 0)
@@ -134,6 +132,8 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r,
 	XAllocColor(xc->display, w->cm, w->c);
 	XParseColor(xc->display, w->cm, "#00ff00", w->c + 1);
 	XAllocColor(xc->display, w->cm, w->c + 1);
+	XParseColor(xc->display, w->cm, "#000000", w->c + 2);
+	XAllocColor(xc->display, w->cm, w->c + 2);
 	SYNC_INIT(XLWIN_C);
 	w->f = XLoadQueryFont(xc->display, "fixed");
 	SYNC_INIT(XLWIN_F);
@@ -145,25 +145,50 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r,
 }
 
 void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s) {
-	int h, ha;
-	unsigned long x;
+	int h, ha, ol = w->r.h - 1;
 	if(xc == NULL || w == NULL || s == NULL)
 		return;
-	x = XWhitePixel(xc->display, xc->screen);
-	printf("pressed draw %d\n", *s->pressed);
-	XSetForeground(xc->display, w->gc, (s->pressed[0] & 1) != 0 ? x :
-	               w->c[(s->led_mask & NUM) != 0].pixel);
-	XFillArc(xc->display, w->win, w->gc, 0, 0, w->r.h, w->r.h, 0, 360 << 6);
-	XSetForeground(xc->display, w->gc, (s->pressed[0] & 2) != 0 ? x :
-	               w->c[(s->led_mask & CAPS) != 0].pixel);
-	XFillArc(xc->display, w->win, w->gc,
-	         w->r.h, 0, w->r.h, w->r.h, 0, 360 << 6);
-	XSetForeground(xc->display, w->gc, (s->pressed[0] & 4) != 0 ? x :
-	         w->c[(s->led_mask & SCRL) != 0].pixel);
-	XFillArc(xc->display, w->win, w->gc,
-	         w->r.h << 1, 0, w->r.h, w->r.h, 0, 360 << 6);
+	XSetForeground(xc->display, w->gc, XBlackPixel(xc->display, xc->screen));
+	XFillRectangle(xc->display, w->win, w->gc, 0, 0, w->r.w, w->r.h);
+	if((s->pressed[0] & 1) != 0) {
+		XSetForeground(xc->display, w->gc,
+		               XWhitePixel(xc->display, xc->screen));
+		XFillArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
+		XSetForeground(xc->display, w->gc, w->c[2].pixel);
+		XDrawArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
+	} else {
+		XSetForeground(xc->display, w->gc,
+		               w->c[(s->led_mask & NUM) != 0].pixel);
+		XFillArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
+	}
+	if((s->pressed[0] & 2) != 0) {
+		XSetForeground(xc->display, w->gc,
+		               XWhitePixel(xc->display, xc->screen));
+		XFillArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
+		XSetForeground(xc->display, w->gc, w->c[2].pixel);
+		XDrawArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
+	} else {
+		XSetForeground(xc->display, w->gc,
+		               w->c[(s->led_mask & CAPS) != 0].pixel);
+		XFillArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
+	}
 
-	XSetForeground(xc->display, w->gc, BlackPixel(xc->display, xc->screen));
+	if((s->pressed[0] & 4) != 0) {
+		XSetForeground(xc->display, w->gc,
+		               XWhitePixel(xc->display, xc->screen));
+		XFillArc(xc->display, w->win, w->gc,w->r.h << 1, 0,
+		         ol, ol, 0, 360 << 6);
+		XSetForeground(xc->display, w->gc, w->c[2].pixel);
+		XDrawArc(xc->display, w->win, w->gc,w->r.h << 1, 0,
+		         ol, ol, 0, 360 << 6);
+	} else {
+		XSetForeground(xc->display, w->gc,
+		               w->c[(s->led_mask & SCRL) != 0].pixel);
+		XFillArc(xc->display, w->win, w->gc,w->r.h << 1, 0,
+		         ol, ol, 0, 360 << 6);
+	}
+
+	XSetForeground(xc->display, w->gc, w->c[2].pixel);
 	XSetFont(xc->display, w->gc, w->f->fid);
 	h = w->r.h >> 1;
 	ha = w->f->ascent >> 1;
