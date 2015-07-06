@@ -1,18 +1,14 @@
 
 # xlights Makefile
 
-CFLAGS += -D_DEFAULT_SOURCE -iquote ../bulk77i
-LDLIBS += -lX11
-
-EXTERN_OBJ = ../bulk77i/auto_clean.o ../bulk77i/bulk.o
+CFLAGS += -D_DEFAULT_SOURCE $(PROD_CFLAGS)
+LDLIBS += -lX11 -lbulk77i
+LDFLAGS += $(PROD_LDFLAGS)
 
 all: xlights
 
-$(EXTERN_OBJ):
-	$(MAKE) -C $(@D) $(MAKEFLAGS) $(@F)
-
 xlights: xlights.o xlwin.o $(EXTERN_OBJ)
-	$(CC) $(LOADLIBES) $(LDFLAGS) $(LDLIBS) $(LDADD) -o $@ $>
+	$(CC) $(LOADLIBES) $(LDFLAGS) $(LDLIBS) $(LDADD) -o $@ $> $^
 
 clean:
 	rm xlights xlights.o xlwin.o || true

@@ -6,9 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <bulk77i/auto_clean.h>
 #include <X11/Xutil.h>
 
-#include "auto_clean.h"
 #include "xlwin.h"
 
 static void xconn_close(void *display) {
@@ -88,11 +88,11 @@ static void xlwin_end(void *d) {
 	XSync(xc->display, False); \
 	w->xlwin_init |= (x); \
 } while(0)
-struct xlwin *xlwin_new(struct xconn *xc, struct rect *r,
-                        struct xlwin_state *s) {
+struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
+                        int pressed) {
 	struct xlwin *w;
 	XVisualInfo vinfo;
-	if(xc == NULL || r == NULL || s == NULL)
+	if(xc == NULL || r == NULL)
 		return NULL;
 	w = malloc(sizeof *w);
 	if(w == NULL) {
@@ -140,17 +140,18 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r,
 	w->gc = XCreateGC(xc->display, w->win, 0, NULL);
 	SYNC_INIT(XLWIN_GC);
 	XMapWindow(xc->display, w->win);
-	xlwin_draw(xc, w, s);
+	xlwin_draw(xc, w, led_mask, pressed);
 	return w;
 }
 
-void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s) {
-	int h, ha, ol = w->r.h - 1;
-	if(xc == NULL || w == NULL || s == NULL)
+void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed) {
+	int h, ha, ol;
+	if(xc == NULL || w == NULL)
 		return;
+	ol = w->r.h - 1;
 	XSetForeground(xc->display, w->gc, XBlackPixel(xc->display, xc->screen));
 	XFillRectangle(xc->display, w->win, w->gc, 0, 0, w->r.w, w->r.h);
-	if((s->pressed[0] & 1) != 0) {
+	if((pressed & 1) != 0) {
 		XSetForeground(xc->display, w->gc,
 		               XWhitePixel(xc->display, xc->screen));
 		XFillArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
@@ -158,10 +159,10 @@ void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s) {
 		XDrawArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
 	} else {
 		XSetForeground(xc->display, w->gc,
-		               w->c[(s->led_mask & NUM) != 0].pixel);
+		               w->c[(led_mask & NUM) != 0].pixel);
 		XFillArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
 	}
-	if((s->pressed[0] & 2) != 0) {
+	if((pressed & 2) != 0) {
 		XSetForeground(xc->display, w->gc,
 		               XWhitePixel(xc->display, xc->screen));
 		XFillArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
@@ -169,11 +170,11 @@ void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s) {
 		XDrawArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
 	} else {
 		XSetForeground(xc->display, w->gc,
-		               w->c[(s->led_mask & CAPS) != 0].pixel);
+		               w->c[(led_mask & CAPS) != 0].pixel);
 		XFillArc(xc->display, w->win, w->gc, w->r.h, 0, ol, ol, 0, 360 << 6);
 	}
 
-	if((s->pressed[0] & 4) != 0) {
+	if((pressed & 4) != 0) {
 		XSetForeground(xc->display, w->gc,
 		               XWhitePixel(xc->display, xc->screen));
 		XFillArc(xc->display, w->win, w->gc,w->r.h << 1, 0,
@@ -183,7 +184,7 @@ void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s) {
 		         ol, ol, 0, 360 << 6);
 	} else {
 		XSetForeground(xc->display, w->gc,
-		               w->c[(s->led_mask & SCRL) != 0].pixel);
+		               w->c[(led_mask & SCRL) != 0].pixel);
 		XFillArc(xc->display, w->win, w->gc,w->r.h << 1, 0,
 		         ol, ol, 0, 360 << 6);
 	}

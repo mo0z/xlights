@@ -10,13 +10,28 @@
 
 #include "xlwin.h"
 
+#define ANSI_GREEN "\x1b[32m"
+#define ANSI_RED "\x1b[31m"
+#define ANSI_RESET "\x1b[0m"
+
+static void xlights_text(int led_mask) {
+	if(isatty(STDOUT_FILENO) != 0)
+		printf("%s[NUM]%s %s[CAPS]%s %s[SCRL]%s\n",
+		       led_mask & NUM ? ANSI_GREEN : ANSI_RED, ANSI_RESET,
+		       led_mask & CAPS ? ANSI_GREEN : ANSI_RED, ANSI_RESET,
+		       led_mask & SCRL ? ANSI_GREEN : ANSI_RED, ANSI_RESET);
+	else
+		printf("NUM: %s\nCAPS: %s\nSCRL: %s\n",
+		       led_mask & NUM ? "ON" : "OFF", led_mask & CAPS ? "ON" : "OFF",
+		       led_mask & SCRL ? "ON" : "OFF");
+}
+
 int main(int argc, char *argv[]) {
-	int x11 = 0, wait = 3;
+	int x11 = 0, wait = 3, pressed = 0;
 	struct xconn xc;
 	struct xlwin *w = NULL;
 	XWindowAttributes xwa;
 	XKeyboardState ks;
-	struct xlwin_state st;
 	while(argc > 1) {
 		if(strcmp(argv[argc - 1], "--x11") == 0) {
 			argc--;
@@ -32,24 +47,26 @@ int main(int argc, char *argv[]) {
 	}
 	if(xconn_connect(&xc) < 0)
 		return EXIT_FAILURE;
+	XGetWindowAttributes(xc.display, xc.root, &xwa);
+	XGetKeyboardControl(xc.display, &ks);
 	if(x11 != 0) {
-		XGetWindowAttributes(xc.display, xc.root, &xwa);
-		XGetKeyboardControl(xc.display, &ks);
-		xconn_any_pressed(&xc, 3, st.pressed,
+		xconn_any_pressed(&xc, 3, &pressed,
 		                  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock);
-		st.led_mask = ks.led_mask;
 		w = xlwin_new(&xc, &(struct rect){
 			xwa.width - 32 * 5, xwa.height - 48, 32 * 3, 32
-		}, &st);
+		}, ks.led_mask, pressed);
 		if(w == NULL)
 			return EXIT_FAILURE;
 	}
-	while(xconn_any_pressed(&xc, 3, st.pressed,
+	while(xconn_any_pressed(&xc, 3, &pressed,
 	  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock) != 0)
 		usleep(100000);
 	XGetKeyboardControl(xc.display, &ks);
-	st.led_mask = ks.led_mask;
-	xlwin_draw(&xc, w, &st);
-	sleep(wait);
+	if(x11 == 0)
+		xlights_text(ks.led_mask);
+	else {
+		xlwin_draw(&xc, w, ks.led_mask, pressed);
+		sleep(wait);
+	}
 	return EXIT_SUCCESS;
 }

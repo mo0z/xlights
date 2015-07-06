@@ -36,15 +36,10 @@ struct xlwin {
 	GC gc;
 };
 
-struct xlwin_state {
-	int led_mask;
-	int pressed[1];
-};
-
 int xconn_connect(struct xconn *xc);
 int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...);
-struct xlwin *xlwin_new(struct xconn *xc, struct rect *r,
-                        struct xlwin_state *s);
-void xlwin_draw(struct xconn *xc, struct xlwin *w, struct xlwin_state *s);
+struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
+                        int pressed);
+void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed);
 
 #endif // XLWIN_H
