@@ -5,21 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <bulk77i/term.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
 #include "xlwin.h"
 
-#define ANSI_GREEN "\x1b[32m"
-#define ANSI_RED "\x1b[31m"
-#define ANSI_RESET "\x1b[0m"
-
 static void xlights_text(int led_mask) {
 	if(isatty(STDOUT_FILENO) != 0)
 		printf("%s[NUM]%s %s[CAPS]%s %s[SCRL]%s\n",
-		       led_mask & NUM ? ANSI_GREEN : ANSI_RED, ANSI_RESET,
-		       led_mask & CAPS ? ANSI_GREEN : ANSI_RED, ANSI_RESET,
-		       led_mask & SCRL ? ANSI_GREEN : ANSI_RED, ANSI_RESET);
+		       led_mask & NUM ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
+		       led_mask & CAPS ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
+		       led_mask & SCRL ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET);
 	else
 		printf("NUM: %s\nCAPS: %s\nSCRL: %s\n",
 		       led_mask & NUM ? "ON" : "OFF", led_mask & CAPS ? "ON" : "OFF",
