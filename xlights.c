@@ -14,9 +14,9 @@
 static void xlights_text(int led_mask) {
 	if(isatty(STDOUT_FILENO) != 0)
 		printf("%s[NUM]%s %s[CAPS]%s %s[SCRL]%s\n",
-		       led_mask & NUM ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
-		       led_mask & CAPS ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
-		       led_mask & SCRL ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET);
+		    led_mask & NUM ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
+		    led_mask & CAPS ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET,
+		    led_mask & SCRL ? TERM_ANSI_GREEN : TERM_ANSI_RED, TERM_ANSI_RESET);
 	else
 		printf("NUM: %s\nCAPS: %s\nSCRL: %s\n",
 		       led_mask & NUM ? "ON" : "OFF", led_mask & CAPS ? "ON" : "OFF",
