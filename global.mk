@@ -8,8 +8,8 @@ CFLAGS += -std=c99 -pipe -fvisibility=hidden -Wall -Wextra -Wformat \
 	-Wsign-compare -Wmultichar -Wuninitialized -Werror -funroll-loops \
 	-funswitch-loops -pedantic
 
-LDFLAGS += -Wl,-z,relro -Wl,-z,now -Wl,-O1 -Wl,--no-undefined \
-	-Wl,--build-id=sha1 -rdynamic
+LDFLAGS += -Wl,-z,relro,-z,now,-O1,--as-needed,--no-undefined \
+	-Wl,--build-id=sha1,--no-allow-shlib-undefined -rdynamic
 
 VALGRIND_FLAGS = --trace-children=yes --leak-check=full --track-origins=yes \
 	--show-leak-kinds=all
@@ -17,7 +17,7 @@ VALGRIND_FLAGS = --trace-children=yes --leak-check=full --track-origins=yes \
 vg:
 	valgrind $(VALGRIND_FLAGS) $(ARGS)
 
-DEV_CFLAGS = -O1 -g
+DEV_CFLAGS = -Og -g
 PROD_CFLAGS = -O3
 PROD_LDFLAGS = -Wl,--discard-all
 

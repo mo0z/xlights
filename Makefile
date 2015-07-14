@@ -2,8 +2,7 @@
 # xlights Makefile
 
 CFLAGS += -D_DEFAULT_SOURCE $(PROD_CFLAGS)
-LDLIBS += -lX11 -lbulk77i
-LDFLAGS += $(PROD_LDFLAGS)
+LDFLAGS += -lX11 -lbulk77i $(PROD_LDFLAGS)
 
 all: xlights
 
