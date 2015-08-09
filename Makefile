@@ -7,7 +7,7 @@ LDFLAGS += -lX11 -lbulk77i $(PROD_LDFLAGS)
 all: xlights
 
 xlights: xlights.o xlwin.o $(EXTERN_OBJ)
-	$(CC) $(LOADLIBES) $(LDFLAGS) $(LDLIBS) $(LDADD) -o $@ $> $^
+	$(LINK)
 
 clean:
 	rm xlights xlights.o xlwin.o || true

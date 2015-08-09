@@ -14,6 +14,10 @@ LDFLAGS += -Wl,-z,relro,-z,now,-O1,--as-needed,--no-undefined \
 VALGRIND_FLAGS = --trace-children=yes --leak-check=full --track-origins=yes \
 	--show-leak-kinds=all
 
+LINK = $(CC) $(LDFLAGS) $> $^ $(LOADLIBES) $(LDLIBS) $(LDADD) -o $@
+LINK_SHARED = \
+	$(CC) $(LDFLAGS) $> $^ $(LOADLIBES) $(LDLIBS) $(LDADD) -shared -o $@
+
 vg:
 	valgrind $(VALGRIND_FLAGS) $(ARGS)
 
