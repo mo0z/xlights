@@ -8,6 +8,8 @@ CFLAGS += -std=c99 -pipe -fvisibility=hidden -Wall -Wextra -Wformat \
 	-Wsign-compare -Wmultichar -Wuninitialized -Werror -funroll-loops \
 	-funswitch-loops -pedantic
 
+SHARED_CFLAGS = -fPIC -fvisibility=default
+
 LDFLAGS += -Wl,-z,relro,-z,now,-O1,--as-needed,--no-undefined \
 	-Wl,--build-id=sha1,--no-allow-shlib-undefined -rdynamic
 
