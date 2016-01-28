@@ -60,28 +60,23 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 	return ret;
 }
 
-struct xlwin_end_data {
-	Display *display;
-	struct xlwin *w;
-};
-
 static void xlwin_end(void *d) {
-	struct xlwin_end_data *x = d;
-	if(x->display == NULL || x->w == NULL)
+	struct xlwin *w = d;
+	if(w == NULL || w->display == NULL)
 		return;
-	if((x->w->xlwin_init & XLWIN_CM) != 0)
-		XFreeColormap(x->display, x->w->cm);
-	if((x->w->xlwin_init & XLWIN_WIN) != 0)
-		XDestroyWindow(x->display, x->w->win);
-	if((x->w->xlwin_init & XLWIN_C) != 0)
-		XFreeColors(x->display, x->w->cm, (unsigned long[]){
-			x->w->c[0].pixel, x->w->c[1].pixel, x->w->c[2].pixel
+	if((w->xlwin_init & XLWIN_C) != 0)
+		XFreeColors(w->display, w->cm, (unsigned long[]){
+			w->c[0].pixel, w->c[1].pixel, w->c[2].pixel
 		}, 3, 0);
-	if((x->w->xlwin_init & XLWIN_F) != 0)
-		XFreeFont(x->display, x->w->f);
-	if((x->w->xlwin_init & XLWIN_GC) != 0)
-		XFreeGC(x->display, x->w->gc);
-	free(x->w);
+	if((w->xlwin_init & XLWIN_CM) != 0)
+		XFreeColormap(w->display, w->cm);
+	if((w->xlwin_init & XLWIN_WIN) != 0)
+		XDestroyWindow(w->display, w->win);
+	if((w->xlwin_init & XLWIN_F) != 0)
+		XFreeFont(w->display, w->f);
+	if((w->xlwin_init & XLWIN_GC) != 0)
+		XFreeGC(w->display, w->gc);
+	free(w);
 }
 
 #define SYNC_INIT(x) do { \
@@ -99,13 +94,11 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 		perror("malloc");
 		return NULL;
 	}
-	if(auto_clean_add(&(struct xlwin_end_data){
-		  .display = xc->display,
-		  .w = w,
-	  }, xlwin_end) < 0) {
+	if(auto_clean_add(w, xlwin_end) < 0) {
 		free(w);
 		return NULL;
 	}
+	w->display = xc->display;
 	w->xlwin_init = 0;
 	memcpy(&w->r, r, sizeof w->r);
 	XMatchVisualInfo(xc->display, xc->screen, 32, TrueColor, &vinfo);

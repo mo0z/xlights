@@ -21,6 +21,7 @@ struct xconn {
 };
 
 struct xlwin {
+	Display *display;
 	enum {
 		XLWIN_CM  = (1 << 0),
 		XLWIN_WIN = (1 << 1),
