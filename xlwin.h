@@ -6,9 +6,10 @@
 
 #include <X11/Xlib.h>
 
-#define CAPS (1 << 0)
-#define NUM  (1 << 1)
-#define SCRL (1 << 2)
+#define CAPS  (1 <<  0)
+#define NUM   (1 <<  1)
+#define SCRL  (1 <<  2)
+#define MOUSE (1 << 13)
 
 struct rect {
 	int x, y, w, h;
@@ -31,7 +32,7 @@ struct xlwin {
 	Colormap cm;
 	struct rect r;
 	Window win;
-	XColor c[3];
+	XColor c[4];
 	XFontStruct *f;
 	GC gc;
 };

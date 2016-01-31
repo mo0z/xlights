@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <X11/Xutil.h>
+#include <bulk77i/util.h>
 
 #include "xlwin.h"
 
@@ -97,6 +98,8 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 	XAllocColor(xc->display, w->cm, w->c + 1);
 	XParseColor(xc->display, w->cm, "#000000", w->c + 2);
 	XAllocColor(xc->display, w->cm, w->c + 2);
+	XParseColor(xc->display, w->cm, "#ffff00", w->c + 3);
+	XAllocColor(xc->display, w->cm, w->c + 3);
 	SYNC_INIT(XLWIN_C);
 	w->f = XLoadQueryFont(xc->display, "fixed");
 	SYNC_INIT(XLWIN_F);
@@ -107,13 +110,20 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 	return w;
 }
 
+static inline int xlwin_freecolors(Display *display, Colormap *cm,
+                                   XColor c[], const size_t nc) {
+	size_t i;
+	unsigned long p[nc];
+	for(i = 0; i < nc; i++)
+		p[i] = c[i].pixel;
+	return XFreeColors(display, *cm, p, nc, 0);
+}
+
 void xlwin_end(struct xconn *xc, struct xlwin *w) {
 	if(xc == NULL || xc->display == NULL || w == NULL)
 		return;
 	if((w->xlwin_init & XLWIN_C) != 0)
-		XFreeColors(xc->display, w->cm, (unsigned long[]){
-			w->c[0].pixel, w->c[1].pixel, w->c[2].pixel
-		}, 3, 0);
+		xlwin_freecolors(xc->display, &w->cm, w->c, UTIL_LENGTH(w->c));
 	if((w->xlwin_init & XLWIN_CM) != 0)
 		XFreeColormap(xc->display, w->cm);
 	if((w->xlwin_init & XLWIN_WIN) != 0)
@@ -140,7 +150,7 @@ void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed) {
 		XDrawArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
 	} else {
 		XSetForeground(xc->display, w->gc,
-		               w->c[(led_mask & NUM) != 0].pixel);
+		 w->c[((led_mask & NUM) != 0) | (3 * ((led_mask & MOUSE) != 0))].pixel);
 		XFillArc(xc->display, w->win, w->gc, 0, 0, ol, ol, 0, 360 << 6);
 	}
 	if((pressed & 2) != 0) {
