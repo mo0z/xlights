@@ -1,6 +1,7 @@
 
 // xlights.c
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,8 @@
 #include <X11/Xutil.h>
 
 #include "xlwin.h"
+
+bool debug = 0;
 
 static void xlights_text(int led_mask) {
 	printf("NUM: %s\nCAPS: %s\nSCRL: %s\n",
@@ -24,17 +27,17 @@ int main(int argc, char *argv[]) {
 	XWindowAttributes xwa;
 	XKeyboardState ks;
 	while(argc > 1) {
-		if(strcmp(argv[argc - 1], "--x11") == 0) {
-			argc--;
+		if(strcmp(argv[argc - 1], "--x11") == 0)
 			x11 = 1;
-		} else if(argv[argc - 1][strspn(argv[argc - 1], "0123456789")] ==
-		  '\0') {
-			argc--;
+		else if(argv[argc - 1][strspn(argv[argc - 1], "0123456789")] == '\0')
 			wait = strtol(argv[1], NULL, 10);
-		} else {
+		else if(strcmp(argv[argc - 1], "--debug") == 0)
+			debug = true;
+		else {
 			fprintf(stderr, "Error: invalid arguments\n");
 			return EXIT_FAILURE;
 		}
+		argc--;
 	}
 	if(xconn_connect(&xc) < 0)
 		return EXIT_FAILURE;
@@ -53,6 +56,8 @@ int main(int argc, char *argv[]) {
 	  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock) != 0)
 		usleep(100000);
 	XGetKeyboardControl(xc.display, &ks);
+	if(debug == true)
+		printf("led_mask: %lu\n", ks.led_mask);
 	if(x11 == 0)
 		xlights_text(ks.led_mask);
 	else {
