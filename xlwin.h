@@ -21,7 +21,6 @@ struct xconn {
 };
 
 struct xlwin {
-	Display *display;
 	enum {
 		XLWIN_CM  = (1 << 0),
 		XLWIN_WIN = (1 << 1),
@@ -38,9 +37,11 @@ struct xlwin {
 };
 
 int xconn_connect(struct xconn *xc);
+void xconn_close(struct xconn *xc);
 int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...);
 struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
                         int pressed);
+void xlwin_end(struct xconn *xc, struct xlwin *w);
 void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed);
 
 #endif // XLWIN_H
