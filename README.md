@@ -3,6 +3,9 @@
 
 On-screen keyboard LEDs using Xlib.
 
+* [Installation](#installation)
+* [License](#license)
+
 ## Installation
 
 The xlights binary is called with a numeric duration in seconds and the X11 mode

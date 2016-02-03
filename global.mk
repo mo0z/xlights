@@ -24,6 +24,7 @@ VALGRIND_FLAGS = --trace-children=yes --leak-check=full --track-origins=yes \
 LINK = $(CC) $(LDFLAGS) $> $^ $(LOADLIBES) $(LDLIBS) $(LDADD) -o $@
 LINK_SHARED = \
 	$(CC) $(LDFLAGS) $> $^ $(LOADLIBES) $(LDLIBS) $(LDADD) -shared -o $@
+LINK_STATIC = ar rcs $@ $> $^
 
 vg:
 	valgrind $(VALGRIND_FLAGS) $(ARGS)
