@@ -55,8 +55,10 @@ int main(int argc, char *argv[]) {
 		w = xlwin_new(&xc, &(struct rect){
 			xwa.width - 32 * 5, xwa.height - 48, 32 * 3, 32
 		}, ks.led_mask, pressed);
-		if(w == NULL)
+		if(w == NULL) {
+			xconn_close(&xc);
 			return EXIT_FAILURE;
+		}
 	}
 	while(xconn_any_pressed(&xc, 3, &pressed,
 	  XK_Num_Lock, XK_Caps_Lock, XK_Scroll_Lock) != 0)

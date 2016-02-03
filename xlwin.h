@@ -28,14 +28,7 @@ struct xconn {
 };
 
 struct xlwin {
-	enum {
-		XLWIN_START,
-		XLWIN_CM,
-		XLWIN_WIN,
-		XLWIN_C,
-		XLWIN_F,
-		XLWIN_GC,
-	} xlwin_init;
+	unsigned xlwin_init;
 	Colormap cm;
 	struct rect r;
 	Window win;

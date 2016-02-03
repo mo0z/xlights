@@ -12,10 +12,122 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <X11/Xutil.h>
 #include <bulk77i/util.h>
+#include <X11/Xutil.h>
+#include <X11/Xlibint.h>
 
 #include "xlwin.h"
+
+static int error = 0;
+
+/* this was pulled from the libx11 1.6.3 source
+ * so we can retreat in a structured way instead of auto_clean
+ */
+static int xconn_print_error(Display *dpy, XErrorEvent *event, FILE *fh) {
+	char buffer[BUFSIZ];
+	char mesg[BUFSIZ];
+	char number[32];
+	const char *mtype = "XlibMessage";
+	register _XExtension *ext = NULL;
+	_XExtension *bext = NULL;
+	XGetErrorText(dpy, event->error_code, buffer, BUFSIZ);
+	XGetErrorDatabaseText(dpy, mtype, "XError", "X Error", mesg, BUFSIZ);
+	fprintf(fh, "%s:  %s\n  ", mesg, buffer);
+	XGetErrorDatabaseText(dpy, mtype, "MajorCode", "Request Major code %d",
+	  mesg, BUFSIZ);
+	fprintf(fh, mesg, event->request_code);
+	if(event->request_code < 128) {
+		snprintf(number, sizeof(number), "%d", event->request_code);
+		XGetErrorDatabaseText(dpy, "XRequest", number, "", buffer, BUFSIZ);
+	} else {
+		for(ext = dpy->ext_procs; ext; ext = ext->next)
+			if(ext->codes.major_opcode == event->request_code)
+				break;
+		if(ext) {
+			strncpy(buffer, ext->name, BUFSIZ);
+			buffer[BUFSIZ - 1] = '\0';
+		} else
+			buffer[0] = '\0';
+	}
+	fprintf(fh, " (%s)\n", buffer);
+	if(event->request_code >= 128) {
+		XGetErrorDatabaseText(dpy, mtype, "MinorCode", "Request Minor code %d",
+		mesg, BUFSIZ);
+		fputs("  ", fh);
+		fprintf(fh, mesg, event->minor_code);
+		if(ext) {
+			snprintf(mesg, sizeof(mesg), "%s.%d", ext->name, event->minor_code);
+			XGetErrorDatabaseText(dpy, "XRequest", mesg, "", buffer, BUFSIZ);
+			fprintf(fh, " (%s)", buffer);
+		}
+		fputs("\n", fh);
+	}
+	if(event->error_code >= 128) {
+		/* kludge, try to find the extension that caused it */
+		buffer[0] = '\0';
+		for(ext = dpy->ext_procs; ext; ext = ext->next) {
+			if(ext->error_string)
+				(*ext->error_string)(dpy, event->error_code, &ext->codes,
+				  buffer, BUFSIZ);
+			if(buffer[0]) {
+				bext = ext;
+				break;
+			}
+			if(ext->codes.first_error &&
+			ext->codes.first_error < (int)event->error_code &&
+			(!bext || ext->codes.first_error > bext->codes.first_error))
+				bext = ext;
+		}
+		if(bext)
+			snprintf(buffer, sizeof(buffer), "%s.%d", bext->name,
+			  event->error_code - bext->codes.first_error);
+		else
+			strcpy(buffer, "Value");
+		XGetErrorDatabaseText(dpy, mtype, buffer, "", mesg, BUFSIZ);
+		if(mesg[0]) {
+			fputs("  ", fh);
+			fprintf(fh, mesg, event->resourceid);
+			fputs("\n", fh);
+		}
+		/* let extensions try to print the values */
+		for(ext = dpy->ext_procs; ext; ext = ext->next)
+			if(ext->error_values)
+				(*ext->error_values)(dpy, event, fh);
+	} else if((event->error_code == BadWindow) ||
+	  (event->error_code == BadPixmap) || (event->error_code == BadCursor) ||
+	  (event->error_code == BadFont) || (event->error_code == BadDrawable) ||
+	  (event->error_code == BadColor) || (event->error_code == BadGC) ||
+	  (event->error_code == BadIDChoice) || (event->error_code == BadValue) ||
+	  (event->error_code == BadAtom)) {
+		if(event->error_code == BadValue)
+			XGetErrorDatabaseText(dpy, mtype, "Value", "Value 0x%x",
+			  mesg, BUFSIZ);
+		else if(event->error_code == BadAtom)
+			XGetErrorDatabaseText(dpy, mtype, "AtomID", "AtomID 0x%x",
+			  mesg, BUFSIZ);
+		else
+			XGetErrorDatabaseText(dpy, mtype, "ResourceID", "ResourceID 0x%x",
+			  mesg, BUFSIZ);
+		fputs("  ", fh);
+		fprintf(fh, mesg, event->resourceid);
+		fputs("\n", fh);
+	}
+	XGetErrorDatabaseText(dpy, mtype, "ErrorSerial", "Error Serial #%d",
+	  mesg, BUFSIZ);
+	fputs("  ", fh);
+	fprintf(fh, mesg, event->serial);
+	XGetErrorDatabaseText(dpy, mtype, "CurrentSerial", "Current Serial #%d",
+	  mesg, BUFSIZ);
+	fputs("\n  ", fh);
+	fprintf(fh, mesg, dpy->request);
+	fputs("\n", fh);
+	return 0;
+}
+
+static int xconn_error(Display *dpy, XErrorEvent *event) {
+	error = 1;
+    return xconn_print_error(dpy, event, stderr);
+}
 
 int xconn_connect(struct xconn *xc) {
 	if(xc == NULL)
@@ -27,6 +139,7 @@ int xconn_connect(struct xconn *xc) {
 	}
 	xc->screen = DefaultScreen(xc->display);
 	xc->root = XRootWindow(xc->display, xc->screen);
+	XSetErrorHandler(xconn_error);
 	return 0;
 }
 
@@ -63,6 +176,10 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 
 #define SYNC_INIT do { \
 	XSync(xc->display, False); \
+	if(error != 0) { \
+		xlwin_end(xc, w); \
+		return NULL; \
+	} \
 	w->xlwin_init++; \
 } while(0)
 struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
@@ -76,7 +193,7 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 		perror("malloc");
 		return NULL;
 	}
-	w->xlwin_init = XLWIN_START;
+	w->xlwin_init = 0;
 	memcpy(&w->r, r, sizeof w->r);
 	XMatchVisualInfo(xc->display, xc->screen, 32, TrueColor, &vinfo);
 	w->cm = XCreateColormap(xc->display, xc->root, vinfo.visual, AllocNone);
@@ -100,10 +217,13 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 	});
 	XParseColor(xc->display, w->cm, "#ff0000", w->c);
 	XAllocColor(xc->display, w->cm, w->c);
+	SYNC_INIT;
 	XParseColor(xc->display, w->cm, "#00ff00", w->c + 1);
 	XAllocColor(xc->display, w->cm, w->c + 1);
+	SYNC_INIT;
 	XParseColor(xc->display, w->cm, "#000000", w->c + 2);
 	XAllocColor(xc->display, w->cm, w->c + 2);
+	SYNC_INIT;
 	XParseColor(xc->display, w->cm, "#ffff00", w->c + 3);
 	XAllocColor(xc->display, w->cm, w->c + 3);
 	SYNC_INIT;
@@ -116,34 +236,34 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 	return w;
 }
 
-static inline int xlwin_freecolors(Display *display, Colormap *cm,
-                                   XColor c[], const size_t nc) {
+static inline int xlwin_freecolors(Display *display, struct xlwin *w) {
 	size_t i;
-	unsigned long p[nc];
-	for(i = 0; i < nc; i++)
-		p[i] = c[i].pixel;
-	return XFreeColors(display, *cm, p, nc, 0);
+	unsigned long p[UTIL_LENGTH(w->c)];
+	for(i = 0; i < UTIL_LENGTH(w->c) && i + 1 < w->xlwin_init; i++)
+		p[i] = w->c[i].pixel;
+	return XFreeColors(display, w->cm, p, i, 0);
 }
 
 void xlwin_end(struct xconn *xc, struct xlwin *w) {
 	if(xc == NULL || xc->display == NULL || w == NULL)
 		return;
-	if(w->xlwin_init >= XLWIN_C)
-		xlwin_freecolors(xc->display, &w->cm, w->c, UTIL_LENGTH(w->c));
-	if(w->xlwin_init >= XLWIN_CM)
+	if(w->xlwin_init >= 2)
+		xlwin_freecolors(xc->display, w);
+	if(w->xlwin_init >= 1)
 		XFreeColormap(xc->display, w->cm);
-	if(w->xlwin_init >= XLWIN_WIN)
-		XDestroyWindow(xc->display, w->win);
-	if(w->xlwin_init >= XLWIN_F)
-		XFreeFont(xc->display, w->f);
-	if(w->xlwin_init >= XLWIN_GC)
-		XFreeGC(xc->display, w->gc);
+	if(w->xlwin_init > UTIL_LENGTH(w->c) + 1) {
+		w->xlwin_init -= UTIL_LENGTH(w->c) + 1;
+		if(w->xlwin_init-- >= 1)
+			XFreeFont(xc->display, w->f);
+		if(w->xlwin_init >= 1)
+			XFreeGC(xc->display, w->gc);
+	}
 	free(w);
 }
 
 void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed) {
 	int h, ha, ol;
-	if(xc == NULL || w == NULL || w->xlwin_init < XLWIN_GC)
+	if(xc == NULL || w == NULL || error != 0)
 		return;
 	ol = w->r.h - 1;
 	XSetForeground(xc->display, w->gc, XBlackPixel(xc->display, xc->screen));
