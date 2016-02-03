@@ -18,119 +18,21 @@
 
 #include "xlwin.h"
 
-static int error = 0;
+static void *cleanup[2] = { NULL, NULL };
 
-/* this was pulled from the libx11 1.6.3 source
- * so we can retreat in a structured way instead of auto_clean
- */
-static int xconn_print_error(Display *dpy, XErrorEvent *event, FILE *fh) {
-	char buffer[BUFSIZ];
-	char mesg[BUFSIZ];
-	char number[32];
-	const char *mtype = "XlibMessage";
-	register _XExtension *ext = NULL;
-	_XExtension *bext = NULL;
-	XGetErrorText(dpy, event->error_code, buffer, BUFSIZ);
-	XGetErrorDatabaseText(dpy, mtype, "XError", "X Error", mesg, BUFSIZ);
-	fprintf(fh, "%s:  %s\n  ", mesg, buffer);
-	XGetErrorDatabaseText(dpy, mtype, "MajorCode", "Request Major code %d",
-	  mesg, BUFSIZ);
-	fprintf(fh, mesg, event->request_code);
-	if(event->request_code < 128) {
-		snprintf(number, sizeof(number), "%d", event->request_code);
-		XGetErrorDatabaseText(dpy, "XRequest", number, "", buffer, BUFSIZ);
-	} else {
-		for(ext = dpy->ext_procs; ext; ext = ext->next)
-			if(ext->codes.major_opcode == event->request_code)
-				break;
-		if(ext) {
-			strncpy(buffer, ext->name, BUFSIZ);
-			buffer[BUFSIZ - 1] = '\0';
-		} else
-			buffer[0] = '\0';
-	}
-	fprintf(fh, " (%s)\n", buffer);
-	if(event->request_code >= 128) {
-		XGetErrorDatabaseText(dpy, mtype, "MinorCode", "Request Minor code %d",
-		mesg, BUFSIZ);
-		fputs("  ", fh);
-		fprintf(fh, mesg, event->minor_code);
-		if(ext) {
-			snprintf(mesg, sizeof(mesg), "%s.%d", ext->name, event->minor_code);
-			XGetErrorDatabaseText(dpy, "XRequest", mesg, "", buffer, BUFSIZ);
-			fprintf(fh, " (%s)", buffer);
-		}
-		fputs("\n", fh);
-	}
-	if(event->error_code >= 128) {
-		/* kludge, try to find the extension that caused it */
-		buffer[0] = '\0';
-		for(ext = dpy->ext_procs; ext; ext = ext->next) {
-			if(ext->error_string)
-				(*ext->error_string)(dpy, event->error_code, &ext->codes,
-				  buffer, BUFSIZ);
-			if(buffer[0]) {
-				bext = ext;
-				break;
-			}
-			if(ext->codes.first_error &&
-			ext->codes.first_error < (int)event->error_code &&
-			(!bext || ext->codes.first_error > bext->codes.first_error))
-				bext = ext;
-		}
-		if(bext)
-			snprintf(buffer, sizeof(buffer), "%s.%d", bext->name,
-			  event->error_code - bext->codes.first_error);
-		else
-			strcpy(buffer, "Value");
-		XGetErrorDatabaseText(dpy, mtype, buffer, "", mesg, BUFSIZ);
-		if(mesg[0]) {
-			fputs("  ", fh);
-			fprintf(fh, mesg, event->resourceid);
-			fputs("\n", fh);
-		}
-		/* let extensions try to print the values */
-		for(ext = dpy->ext_procs; ext; ext = ext->next)
-			if(ext->error_values)
-				(*ext->error_values)(dpy, event, fh);
-	} else if((event->error_code == BadWindow) ||
-	  (event->error_code == BadPixmap) || (event->error_code == BadCursor) ||
-	  (event->error_code == BadFont) || (event->error_code == BadDrawable) ||
-	  (event->error_code == BadColor) || (event->error_code == BadGC) ||
-	  (event->error_code == BadIDChoice) || (event->error_code == BadValue) ||
-	  (event->error_code == BadAtom)) {
-		if(event->error_code == BadValue)
-			XGetErrorDatabaseText(dpy, mtype, "Value", "Value 0x%x",
-			  mesg, BUFSIZ);
-		else if(event->error_code == BadAtom)
-			XGetErrorDatabaseText(dpy, mtype, "AtomID", "AtomID 0x%x",
-			  mesg, BUFSIZ);
-		else
-			XGetErrorDatabaseText(dpy, mtype, "ResourceID", "ResourceID 0x%x",
-			  mesg, BUFSIZ);
-		fputs("  ", fh);
-		fprintf(fh, mesg, event->resourceid);
-		fputs("\n", fh);
-	}
-	XGetErrorDatabaseText(dpy, mtype, "ErrorSerial", "Error Serial #%d",
-	  mesg, BUFSIZ);
-	fputs("  ", fh);
-	fprintf(fh, mesg, event->serial);
-	XGetErrorDatabaseText(dpy, mtype, "CurrentSerial", "Current Serial #%d",
-	  mesg, BUFSIZ);
-	fputs("\n  ", fh);
-	fprintf(fh, mesg, dpy->request);
-	fputs("\n", fh);
-	return 0;
-}
-
-static int xconn_error(Display *dpy, XErrorEvent *event) {
-	error = 1;
-    return xconn_print_error(dpy, event, stderr);
+void xconn_exit(void) {
+	struct xconn dummy = {
+		.display = cleanup[0]
+	};
+	if(cleanup[1] != NULL)
+		xlwin_end(&dummy, cleanup[1]);
+	if(cleanup[0] != NULL)
+		xconn_close(&dummy);
+	cleanup[0] = cleanup[1] = NULL;
 }
 
 int xconn_connect(struct xconn *xc) {
-	if(xc == NULL)
+	if(xc == NULL || cleanup[0] != NULL)
 		return -1;
 	xc->display = XOpenDisplay(NULL);
 	if(xc->display == NULL) {
@@ -139,7 +41,8 @@ int xconn_connect(struct xconn *xc) {
 	}
 	xc->screen = DefaultScreen(xc->display);
 	xc->root = XRootWindow(xc->display, xc->screen);
-	XSetErrorHandler(xconn_error);
+	cleanup[0] = xc->display;
+	atexit(xconn_exit);
 	return 0;
 }
 
@@ -176,23 +79,20 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 
 #define SYNC_INIT do { \
 	XSync(xc->display, False); \
-	if(error != 0) { \
-		xlwin_end(xc, w); \
-		return NULL; \
-	} \
 	w->xlwin_init++; \
 } while(0)
 struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
                         int pressed) {
 	struct xlwin *w;
 	XVisualInfo vinfo;
-	if(xc == NULL || r == NULL)
+	if(xc == NULL || r == NULL || cleanup[1] != NULL)
 		return NULL;
 	w = malloc(sizeof *w);
 	if(w == NULL) {
 		perror("malloc");
 		return NULL;
 	}
+	cleanup[1] = w;
 	w->xlwin_init = 0;
 	memcpy(&w->r, r, sizeof w->r);
 	XMatchVisualInfo(xc->display, xc->screen, 32, TrueColor, &vinfo);
@@ -255,7 +155,7 @@ void xlwin_end(struct xconn *xc, struct xlwin *w) {
 		w->xlwin_init -= UTIL_LENGTH(w->c) + 1;
 		if(w->xlwin_init-- >= 1)
 			XFreeFont(xc->display, w->f);
-		if(w->xlwin_init >= 1)
+		if(w->xlwin_init-- >= 1)
 			XFreeGC(xc->display, w->gc);
 	}
 	free(w);
@@ -263,7 +163,7 @@ void xlwin_end(struct xconn *xc, struct xlwin *w) {
 
 void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed) {
 	int h, ha, ol;
-	if(xc == NULL || w == NULL || error != 0)
+	if(xc == NULL || w == NULL)
 		return;
 	ol = w->r.h - 1;
 	XSetForeground(xc->display, w->gc, XBlackPixel(xc->display, xc->screen));

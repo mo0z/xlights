@@ -72,7 +72,5 @@ int main(int argc, char *argv[]) {
 		xlwin_draw(&xc, w, ks.led_mask, pressed);
 		sleep(wait);
 	}
-	xlwin_end(&xc, w);
-	xconn_close(&xc);
 	return EXIT_SUCCESS;
 }
