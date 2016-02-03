@@ -61,9 +61,9 @@ int xconn_any_pressed(struct xconn *xc, int num, int *pressed, ...) {
 	return ret;
 }
 
-#define SYNC_INIT(x) do { \
+#define SYNC_INIT do { \
 	XSync(xc->display, False); \
-	w->xlwin_init |= (x); \
+	w->xlwin_init++; \
 } while(0)
 struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
                         int pressed) {
@@ -76,11 +76,11 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 		perror("malloc");
 		return NULL;
 	}
-	w->xlwin_init = 0;
+	w->xlwin_init = XLWIN_START;
 	memcpy(&w->r, r, sizeof w->r);
 	XMatchVisualInfo(xc->display, xc->screen, 32, TrueColor, &vinfo);
 	w->cm = XCreateColormap(xc->display, xc->root, vinfo.visual, AllocNone);
-	SYNC_INIT(XLWIN_CM);
+	SYNC_INIT;
 	w->win = XCreateWindow(xc->display, xc->root, r->x, r->y, r->w, r->h, 0,
 	  vinfo.depth, InputOutput, vinfo.visual,
 	  CWColormap|CWBorderPixel|CWBackPixel|CWOverrideRedirect,
@@ -90,7 +90,7 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 		.background_pixel = 0,
 		.override_redirect = True,
 	  });
-	SYNC_INIT(XLWIN_WIN);
+	SYNC_INIT;
 	XSetNormalHints(xc->display, w->win, &(XSizeHints){
 		.flags = PPosition|PSize,
 		.x = r->x,
@@ -106,11 +106,11 @@ struct xlwin *xlwin_new(struct xconn *xc, struct rect *r, int led_mask,
 	XAllocColor(xc->display, w->cm, w->c + 2);
 	XParseColor(xc->display, w->cm, "#ffff00", w->c + 3);
 	XAllocColor(xc->display, w->cm, w->c + 3);
-	SYNC_INIT(XLWIN_C);
+	SYNC_INIT;
 	w->f = XLoadQueryFont(xc->display, "fixed");
-	SYNC_INIT(XLWIN_F);
+	SYNC_INIT;
 	w->gc = XCreateGC(xc->display, w->win, 0, NULL);
-	SYNC_INIT(XLWIN_GC);
+	SYNC_INIT;
 	XMapWindow(xc->display, w->win);
 	xlwin_draw(xc, w, led_mask, pressed);
 	return w;
@@ -128,22 +128,22 @@ static inline int xlwin_freecolors(Display *display, Colormap *cm,
 void xlwin_end(struct xconn *xc, struct xlwin *w) {
 	if(xc == NULL || xc->display == NULL || w == NULL)
 		return;
-	if((w->xlwin_init & XLWIN_C) != 0)
+	if(w->xlwin_init >= XLWIN_C)
 		xlwin_freecolors(xc->display, &w->cm, w->c, UTIL_LENGTH(w->c));
-	if((w->xlwin_init & XLWIN_CM) != 0)
+	if(w->xlwin_init >= XLWIN_CM)
 		XFreeColormap(xc->display, w->cm);
-	if((w->xlwin_init & XLWIN_WIN) != 0)
+	if(w->xlwin_init >= XLWIN_WIN)
 		XDestroyWindow(xc->display, w->win);
-	if((w->xlwin_init & XLWIN_F) != 0)
+	if(w->xlwin_init >= XLWIN_F)
 		XFreeFont(xc->display, w->f);
-	if((w->xlwin_init & XLWIN_GC) != 0)
+	if(w->xlwin_init >= XLWIN_GC)
 		XFreeGC(xc->display, w->gc);
 	free(w);
 }
 
 void xlwin_draw(struct xconn *xc, struct xlwin *w, int led_mask, int pressed) {
 	int h, ha, ol;
-	if(xc == NULL || w == NULL)
+	if(xc == NULL || w == NULL || w->xlwin_init < XLWIN_GC)
 		return;
 	ol = w->r.h - 1;
 	XSetForeground(xc->display, w->gc, XBlackPixel(xc->display, xc->screen));

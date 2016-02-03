@@ -29,11 +29,12 @@ struct xconn {
 
 struct xlwin {
 	enum {
-		XLWIN_CM  = (1 << 0),
-		XLWIN_WIN = (1 << 1),
-		XLWIN_C   = (1 << 2),
-		XLWIN_F   = (1 << 3),
-		XLWIN_GC  = (1 << 4),
+		XLWIN_START,
+		XLWIN_CM,
+		XLWIN_WIN,
+		XLWIN_C,
+		XLWIN_F,
+		XLWIN_GC,
 	} xlwin_init;
 	Colormap cm;
 	struct rect r;
