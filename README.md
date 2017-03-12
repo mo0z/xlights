@@ -35,7 +35,7 @@ static Key keys[] = {
 
 ## License
 
-Copyright (c) 2015-2016, mar77i <mar77i at mar77i dot ch>
+Copyright (c) 2015-2016, mar77i <mysatyre at gmail dot com>
 
 This software may be modified and distributed under the terms
 of the ISC license.  See the [LICENSE](LICENSE) file for details.
